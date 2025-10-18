@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -38,9 +39,11 @@ public class JwtUtil {
      * @return the generated JWT token string
      */
     public String generateToken(User user) {
-        List<String> roles = user.getUserRoles().stream()
-                .map(userRole -> userRole.getRole().getName())
-                .collect(Collectors.toList());
+        List<String> roles = user.getUserRoles() != null ? 
+                user.getUserRoles().stream()
+                        .map(userRole -> userRole.getRole().getName())
+                        .collect(Collectors.toList()) : 
+                Collections.emptyList();
 
         return Jwts.builder()
                 .setSubject(user.getName()) // Username as subject
@@ -70,12 +73,17 @@ public class JwtUtil {
      * Extracts roles from JWT token.
      *
      * @param token the JWT token
-     * @return list of roles
+     * @return list of roles, empty list if token is invalid
      */
     @SuppressWarnings("unchecked")
     public List<String> extractRoles(String token) {
+        try {
             Claims claims = extractClaims(token);
             return (List<String>) claims.get("roles");
+        } catch (Exception exception) {
+            // Any JWT parsing/validation exception means roles cannot be extracted
+            return Collections.emptyList();
+        }
     }
 
     /**
@@ -85,8 +93,13 @@ public class JwtUtil {
      * @return true if valid, false otherwise
      */
     public Boolean isTokenValid(String token) {
+        try {
             Claims claims = extractClaims(token);
             return !claims.getExpiration().before(new Date());
+        } catch (Exception exception) {
+            // Any JWT parsing/validation exception means token is invalid
+            return false;
+        }
     }
 
     /**

@@ -42,7 +42,7 @@ public interface BaseRepository<T, ID> extends JpaRepository<T, ID> {
      *
      * @param id the entity ID to softly delete
      */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE #{#entityName} e SET e.isActive = false WHERE e.id = :id")
     void softDeleteById(@Param("id") ID id);
 }
