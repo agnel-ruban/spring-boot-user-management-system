@@ -42,9 +42,9 @@ class AuthTestContainersTest {
 
     @Container
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16")
-            .withDatabaseName("testdb")
-            .withUsername("test")
-            .withPassword("test")
+            .withDatabaseName("***")
+            .withUsername("***")
+            .withPassword("****")
             .withReuse(true);
 
     @DynamicPropertySource
