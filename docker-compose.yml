@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: usermanagement
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Spring Boot Application
+  app:
+    build: .
+    environment:
+      # Database configuration
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/usermanagement
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+      # JPA configuration
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+
+      # Liquibase configuration
+      SPRING_LIQUIBASE_ENABLED: true
+
+      # JWT configuration
+      JWT_SECRET: dGVzdC1zZWNyZXQta2V5LWZvci1wcm9kdWN0aW9uLXVzZS1ub3QtZm9yLXRlc3Rpbmc=
+      JWT_EXPIRATION: 86400000
+
+      # Admin user configuration
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+
+      # Application configuration
+      SPRING_PROFILES_ACTIVE: prod
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
+# Volumes for data persistence
+volumes:
+  postgres_data:

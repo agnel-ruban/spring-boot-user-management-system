@@ -1,0 +1,29 @@
+# Git
+.git
+.gitignore
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# Build artifacts (built inside Docker)
+target/
+
+# Test files
+src/test/
+
+# Documentation
+README.md
+*.md
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker files
+docker-compose.yml
+.dockerignore
