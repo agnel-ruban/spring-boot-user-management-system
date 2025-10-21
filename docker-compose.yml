@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # PostgreSQL Database
+  # PostgresSQL Database
   postgres:
     image: postgres:16
     environment:
@@ -16,29 +16,6 @@ services:
   # Spring Boot Application
   app:
     build: .
-    environment:
-      # Database configuration
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/usermanagement
-      SPRING_DATASOURCE_USERNAME: agnel
-      SPRING_DATASOURCE_PASSWORD: Agnel@7005
-
-      # JPA configuration
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT: org.hibernate.dialect.PostgreSQLDialect
-
-      # Liquibase configuration
-      SPRING_LIQUIBASE_ENABLED: true
-
-      # JWT configuration
-      JWT_SECRET: dGVzdC1zZWNyZXQta2V5LWZvci1wcm9kdWN0aW9uLXVzZS1ub3QtZm9yLXRlc3RpbmctdGhpcy1pcy1hLWxvbmctc2VjcmV0LWtleS1mb3ItcHJvZHVjdGlvbi11c2Utb25seQ==
-      JWT_EXPIRATION: 86400000
-
-      # Admin user configuration
-      ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: admin123
-
-      # Application configuration
-      SPRING_PROFILES_ACTIVE: prod
     ports:
       - "8080:8080"
     depends_on:
