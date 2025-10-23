@@ -13,13 +13,27 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"      // for node to node communications
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
   app:
     build: .
     ports:
       - "8080:8080"
     depends_on:
       - postgres
+      - elasticsearch
 
 # Volumes for data persistence
 volumes:
   postgres_data:
+  elasticsearch_data:

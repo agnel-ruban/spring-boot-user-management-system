@@ -13,7 +13,9 @@ import com.i2i.usermanagement.repository.RoleRepository;
 import com.i2i.usermanagement.repository.UserRepository;
 import com.i2i.usermanagement.repository.UserRoleRepository;
 import com.i2i.usermanagement.service.UserService;
+import com.i2i.usermanagement.service.UserDataSyncService;
 import com.i2i.usermanagement.task.BulkUserCreationTask;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of UserService interface.
@@ -44,6 +47,7 @@ public class UserServiceImpl implements UserService {
     private final UserRoleRepository userRoleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final UserDataSyncService userDataSyncService;
 
     /**
      * Constructor for dependency injection.
@@ -53,14 +57,17 @@ public class UserServiceImpl implements UserService {
      * @param userRoleRepository the user role repository
      * @param userMapper     the user mapper
      * @param passwordEncoder the password encoder
+     * @param userDataSyncService the user data sync service for Elasticsearch
      */
     public UserServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
-                          UserRoleRepository userRoleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder) {
+                          UserRoleRepository userRoleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder,
+                          UserDataSyncService userDataSyncService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.userDataSyncService = userDataSyncService;
     }
 
     /**
@@ -90,6 +97,14 @@ public class UserServiceImpl implements UserService {
                     .role(role)
                     .build();
             userRoleRepository.save(userRoleMapping);
+        }
+
+        // Index user in Elasticsearch
+        try {
+            userDataSyncService.indexUser(savedUser);
+            logger.info("Successfully indexed user {} in Elasticsearch", savedUser.getId());
+        } catch (Exception e) {
+            logger.error("Failed to index user {} in Elasticsearch", savedUser.getId(), e);
         }
 
         // Create response with only id and name (timestamps will be null due to @JsonInclude(NON_NULL))
@@ -162,6 +177,15 @@ public class UserServiceImpl implements UserService {
         // Save updated user
         User updatedUser = userRepository.save(existingUser);
 
+        // Update user in Elasticsearch
+        try {
+            userDataSyncService.updateUser(updatedUser);
+            logger.info("Successfully updated user {} in Elasticsearch", updatedUser.getId());
+        } catch (Exception e) {
+            logger.error("Failed to update user {} in Elasticsearch", updatedUser.getId(), e);
+            // Don't fail the operation if Elasticsearch update fails
+        }
+
         return userMapper.toDTO(updatedUser);
     }
 
@@ -229,6 +253,15 @@ public class UserServiceImpl implements UserService {
 
         User updatedUser = userRepository.save(existingUser);
 
+        // Update user in Elasticsearch
+        try {
+            userDataSyncService.updateUser(updatedUser);
+            logger.info("Successfully updated user {} in Elasticsearch", updatedUser.getId());
+        } catch (Exception e) {
+            logger.error("Failed to update user {} in Elasticsearch", updatedUser.getId(), e);
+            // Don't fail the operation if Elasticsearch update fails
+        }
+
         return userMapper.toDTO(updatedUser);
     }
 
@@ -244,6 +277,15 @@ public class UserServiceImpl implements UserService {
 
         // Soft delete: set isActive to false
         userRepository.softDeleteById(id);
+
+        // Delete user from Elasticsearch
+        try {
+            userDataSyncService.deleteUser(id);
+            logger.info("Successfully deleted user {} from Elasticsearch", id);
+        } catch (Exception e) {
+            logger.error("Failed to delete user {} from Elasticsearch", id, e);
+            // Don't fail the operation if Elasticsearch deletion fails
+        }
     }
 
     /**
@@ -252,7 +294,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public List<UserResponseDTO> createBulkUsers(List<UserCreateDTO> userCreateDTOs) {
         // Create Fork/Join task
-        BulkUserCreationTask task = new BulkUserCreationTask(userCreateDTOs, 0, userCreateDTOs.size(),this);
+        BulkUserCreationTask task = new BulkUserCreationTask(userCreateDTOs, 0, userCreateDTOs.size(), this);
 
         // Execute using common pool
         return ForkJoinPool.commonPool().invoke(task);

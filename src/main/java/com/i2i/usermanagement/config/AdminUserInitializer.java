@@ -8,6 +8,7 @@ import com.i2i.usermanagement.repository.UserRepository;
 import com.i2i.usermanagement.repository.UserRoleRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Component;
  * @since 14-10-2025
  */
 @Component
+@Order(1)
 public class AdminUserInitializer implements CommandLineRunner {
 
     @Value("${admin.username}")
