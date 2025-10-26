@@ -25,6 +25,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
+    // Whitelist URLs that don't require authentication
+    private static final String[] WHITE_LIST_URL = {
+        "/api/v1/auth/**",
+        "/swagger-ui/**",
+        "/v3/api-docs/**",
+        "/webjars/**"
+    };
+
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
@@ -55,7 +63,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/v1/auth/**").permitAll()  // Allow auth endpoints
+                .requestMatchers(WHITE_LIST_URL).permitAll()  // Allow whitelisted endpoints
                 .anyRequest().authenticated()  // Protect all other endpoints
             )
             .sessionManagement(session -> session
