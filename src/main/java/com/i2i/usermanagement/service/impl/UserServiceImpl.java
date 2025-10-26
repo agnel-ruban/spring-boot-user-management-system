@@ -13,6 +13,7 @@ import com.i2i.usermanagement.repository.RoleRepository;
 import com.i2i.usermanagement.repository.UserRepository;
 import com.i2i.usermanagement.repository.UserRoleRepository;
 import com.i2i.usermanagement.service.UserService;
+import com.i2i.usermanagement.service.UserEventPublisher;
 import com.i2i.usermanagement.task.BulkUserCreationTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ public class UserServiceImpl implements UserService {
     private final UserRoleRepository userRoleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final UserEventPublisher userEventPublisher;
 
     /**
      * Constructor for dependency injection.
@@ -55,12 +57,14 @@ public class UserServiceImpl implements UserService {
      * @param passwordEncoder the password encoder
      */
     public UserServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
-                          UserRoleRepository userRoleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder) {
+                          UserRoleRepository userRoleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder,
+                          UserEventPublisher userEventPublisher) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.userEventPublisher = userEventPublisher;
     }
 
     /**
@@ -75,6 +79,9 @@ public class UserServiceImpl implements UserService {
 
         // Convert DTO to entity
         User user = userMapper.toEntity(userCreateDTO);
+
+        // Store plain password for event publishing (before hashing)
+        String plainPassword = userCreateDTO.getPassword();
 
         // Hash the password before saving
         user.setPassword(passwordEncoder.encode(userCreateDTO.getPassword()));
@@ -91,6 +98,9 @@ public class UserServiceImpl implements UserService {
                     .build();
             userRoleRepository.save(userRoleMapping);
         }
+
+        // Publish user created event AFTER successful database operations
+        userEventPublisher.publishUserCreated(savedUser, plainPassword);
 
         // Create response with only id and name (timestamps will be null due to @JsonInclude(NON_NULL))
         return UserResponseDTO.builder()
@@ -237,13 +247,15 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public void deleteUser(UUID id) {
-        // Check if active user exists
-        if (userRepository.findByIdAndIsActiveTrue(id).isEmpty()) {
-            throw new UserNotFoundException("User not found with ID: " + id);
-        }
+        // Check if active user exists and get user details for event
+        User userToDelete = userRepository.findByIdAndIsActiveTrue(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
 
         // Soft delete: set isActive to false
         userRepository.softDeleteById(id);
+
+        // Publish user deleted event AFTER successful database operations
+        userEventPublisher.publishUserDeleted(id, userToDelete.getEmail(), userToDelete.getName());
     }
 
     /**
