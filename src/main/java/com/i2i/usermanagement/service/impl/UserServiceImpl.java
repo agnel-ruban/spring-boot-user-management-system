@@ -3,6 +3,7 @@ package com.i2i.usermanagement.service.impl;
 import com.i2i.usermanagement.dto.UserResponseDTO;
 import com.i2i.usermanagement.dto.UserCreateDTO;
 import com.i2i.usermanagement.dto.UserUpdateDTO;
+import com.i2i.usermanagement.document.UserProfile;
 import com.i2i.usermanagement.entity.Role;
 import com.i2i.usermanagement.entity.User;
 import com.i2i.usermanagement.entity.UserRole;
@@ -13,6 +14,7 @@ import com.i2i.usermanagement.repository.RoleRepository;
 import com.i2i.usermanagement.repository.UserRepository;
 import com.i2i.usermanagement.repository.UserRoleRepository;
 import com.i2i.usermanagement.service.UserService;
+import com.i2i.usermanagement.service.UserProfileService;
 import com.i2i.usermanagement.task.BulkUserCreationTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,6 +47,7 @@ public class UserServiceImpl implements UserService {
     private final UserRoleRepository userRoleRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
+    private final UserProfileService userProfileService;
 
     /**
      * Constructor for dependency injection.
@@ -54,14 +57,17 @@ public class UserServiceImpl implements UserService {
      * @param userRoleRepository the user role repository
      * @param userMapper     the user mapper
      * @param passwordEncoder the password encoder
+     * @param userProfileService the user profile service
      */
     public UserServiceImpl(UserRepository userRepository, RoleRepository roleRepository,
-                          UserRoleRepository userRoleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder) {
+                          UserRoleRepository userRoleRepository, UserMapper userMapper, PasswordEncoder passwordEncoder,
+                          UserProfileService userProfileService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
+        this.userProfileService = userProfileService;
     }
 
     /**
@@ -93,11 +99,16 @@ public class UserServiceImpl implements UserService {
             userRoleRepository.save(userRoleMapping);
         }
 
-        // Create response with only id and name (timestamps will be null due to @JsonInclude(NON_NULL))
-        return UserResponseDTO.builder()
-            .id(savedUser.getId())
-            .name(savedUser.getName())
-            .build();
+        // Save extended profile data to MongoDB
+        UserProfile profile = userProfileService.createOrUpdateProfile(
+            savedUser.getId(),
+            userCreateDTO.getAge(),
+            userCreateDTO.getPhoneNumber(),
+            userCreateDTO.getAddress()
+        );
+
+        // Get combined data for response
+        return userMapper.toCombinedDTO(savedUser, profile);
     }
 
     /**
@@ -106,8 +117,12 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
-        return userRepository.findByIsActiveTrue().stream()
-                .map(userMapper::toDTO)
+        List<User> users = userRepository.findByIsActiveTrue();
+        return users.stream()
+                .map(user -> {
+                    UserProfile profile = userProfileService.getUserProfile(user.getId());
+                    return userMapper.toCombinedDTO(user, profile);
+                })
                 .collect(Collectors.toList());
     }
 
@@ -125,13 +140,15 @@ public class UserServiceImpl implements UserService {
             // Admin can see any user
             User user = userRepository.findByIdAndIsActiveTrue(id)
                     .orElseThrow(() -> new UserNotFoundException("User not found with ID: " + id));
-            return userMapper.toDTO(user);
+            UserProfile profile = userProfileService.getUserProfile(user.getId());
+            return userMapper.toCombinedDTO(user, profile);
         } else {
             // User can only see their own data
             String username = authentication.getName();
             User user = userRepository.findByNameAndIsActiveTrue(username)
                     .orElseThrow(() -> new UserNotFoundException("User not found: " + username));
-            return userMapper.toDTO(user);
+            UserProfile profile = userProfileService.getUserProfile(user.getId());
+            return userMapper.toCombinedDTO(user, profile);
         }
     }
 
@@ -149,22 +166,28 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyExistsException("User with email " + userCreateDTO.getEmail() + " already exists");
         }
 
-        // Update all fields
+        // Update core fields in PostgresSQL
         existingUser.setName(userCreateDTO.getName());
         existingUser.setEmail(userCreateDTO.getEmail());
-        existingUser.setAge(userCreateDTO.getAge());
-        existingUser.setPhoneNumber(userCreateDTO.getPhoneNumber());
-        existingUser.setAddress(userCreateDTO.getAddress());
 
         // Hash the password if provided
         if (userCreateDTO.getPassword() != null && !userCreateDTO.getPassword().trim().isEmpty()) {
             existingUser.setPassword(passwordEncoder.encode(userCreateDTO.getPassword()));
         }
 
-        // Save updated user
+        // Save updated user to PostgresSQL
         User updatedUser = userRepository.save(existingUser);
 
-        return userMapper.toDTO(updatedUser);
+        // Update extended fields in MongoDB
+        UserProfile profile = userProfileService.createOrUpdateProfile(
+            updatedUser.getId(),
+            userCreateDTO.getAge(),
+            userCreateDTO.getPhoneNumber(),
+            userCreateDTO.getAddress()
+        );
+
+        // Get combined data for response
+        return userMapper.toCombinedDTO(updatedUser, profile);
     }
 
     /**
@@ -195,23 +218,14 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyExistsException("User with email " + userUpdateDTO.getEmail() + " already exists");
         }
 
-        // Update only non-null fields manually
+        // Update core fields in PostgresSQL
         if (isAdmin) {
-            // Admin can update all fields
+            // Admin can update all core fields
             if (userUpdateDTO.getName() != null) {
                 existingUser.setName(userUpdateDTO.getName());
             }
             if (userUpdateDTO.getEmail() != null) {
                 existingUser.setEmail(userUpdateDTO.getEmail());
-            }
-            if (userUpdateDTO.getAge() != null) {
-                existingUser.setAge(userUpdateDTO.getAge());
-            }
-            if (userUpdateDTO.getPhoneNumber() != null) {
-                existingUser.setPhoneNumber(userUpdateDTO.getPhoneNumber());
-            }
-            if (userUpdateDTO.getAddress() != null) {
-                existingUser.setAddress(userUpdateDTO.getAddress());
             }
             if (userUpdateDTO.getIsActive() != null) {
                 existingUser.setIsActive(userUpdateDTO.getIsActive());
@@ -219,19 +233,33 @@ public class UserServiceImpl implements UserService {
             if (userUpdateDTO.getPassword() != null && !userUpdateDTO.getPassword().trim().isEmpty()) {
                 existingUser.setPassword(passwordEncoder.encode(userUpdateDTO.getPassword()));
             }
-        } else {
-            // User can only update phone and address
-            if (userUpdateDTO.getPhoneNumber() != null) {
-                existingUser.setPhoneNumber(userUpdateDTO.getPhoneNumber());
-            }
-            if (userUpdateDTO.getAddress() != null) {
-                existingUser.setAddress(userUpdateDTO.getAddress());
-            }
         }
+
+        // age, phoneNumber, address are now handled in MongoDB below
 
         User updatedUser = userRepository.save(existingUser);
 
-        return userMapper.toDTO(updatedUser);
+        // Update extended fields in MongoDB if provided
+        UserProfile profile;
+        if (userUpdateDTO.getAge() != null || userUpdateDTO.getPhoneNumber() != null || userUpdateDTO.getAddress() != null) {
+            // Get current profile or create new one
+            UserProfile currentProfile = userProfileService.getUserProfile(updatedUser.getId());
+
+            Integer age = (userUpdateDTO.getAge() != null) ? userUpdateDTO.getAge() :
+                         (currentProfile != null) ? currentProfile.getAge() : null;
+            String phoneNumber = (userUpdateDTO.getPhoneNumber() != null) ? userUpdateDTO.getPhoneNumber() :
+                                (currentProfile != null) ? currentProfile.getPhoneNumber() : null;
+            String address = (userUpdateDTO.getAddress() != null) ? userUpdateDTO.getAddress() :
+                            (currentProfile != null) ? currentProfile.getAddress() : null;
+
+            profile = userProfileService.createOrUpdateProfile(updatedUser.getId(), age, phoneNumber, address);
+        } else {
+            // No MongoDB fields to update, get existing profile
+            profile = userProfileService.getUserProfile(updatedUser.getId());
+        }
+
+        // Get combined data for response
+        return userMapper.toCombinedDTO(updatedUser, profile);
     }
 
     /**
@@ -246,6 +274,9 @@ public class UserServiceImpl implements UserService {
 
         // Soft delete: set isActive to false
         userRepository.softDeleteById(id);
+
+        // Delete user profile from MongoDB
+        userProfileService.deleteUserProfile(id);
     }
 
     /**

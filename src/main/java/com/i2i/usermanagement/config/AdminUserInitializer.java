@@ -6,6 +6,7 @@ import com.i2i.usermanagement.entity.UserRole;
 import com.i2i.usermanagement.repository.RoleRepository;
 import com.i2i.usermanagement.repository.UserRepository;
 import com.i2i.usermanagement.repository.UserRoleRepository;
+import com.i2i.usermanagement.service.UserProfileService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,13 +33,16 @@ public class AdminUserInitializer implements CommandLineRunner {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserProfileService userProfileService;
 
     public AdminUserInitializer(UserRepository userRepository, RoleRepository roleRepository,
-                               UserRoleRepository userRoleRepository, PasswordEncoder passwordEncoder) {
+                               UserRoleRepository userRoleRepository, PasswordEncoder passwordEncoder,
+                               UserProfileService userProfileService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.userRoleRepository = userRoleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.userProfileService = userProfileService;
     }
 
     @Override
@@ -51,13 +55,20 @@ public class AdminUserInitializer implements CommandLineRunner {
             User adminUser = User.builder()
                     .name(adminUsername)
                     .email("admin@example.com")
-                    .age(30)
                     .password(hashedPassword)
                     .isActive(true)
                     .build();
 
-            // Save admin user
+            // Save admin user to PostgreSQL
             User savedAdminUser = userRepository.save(adminUser);
+
+            // Create admin profile in MongoDB
+            userProfileService.createOrUpdateProfile(
+                savedAdminUser.getId(),
+                30,
+                "7845928778",
+                "john street"
+            );
 
             // Assign ROLE_ADMIN to admin user
             Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElse(null);

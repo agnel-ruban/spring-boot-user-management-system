@@ -1,6 +1,7 @@
 package com.i2i.usermanagement.filter;
 
 import com.i2i.usermanagement.exception.AuthenticationException;
+import com.i2i.usermanagement.service.JwtService;
 import com.i2i.usermanagement.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -18,8 +19,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * JWT Authentication Filter.
- * Validates JWT tokens and sets authentication in SecurityContext.
+ * JWT Authentication Filter with Redis caching.
+ * Validates JWT tokens using Redis first, then JWT signature.
  *
  * @author Agnel Ruban
  * @version 1.0
@@ -28,15 +29,17 @@ import java.util.stream.Collectors;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    private final JwtService jwtService;
     private final JwtUtil jwtUtil;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
+    public JwtAuthenticationFilter(JwtService jwtService, JwtUtil jwtUtil) {
+        this.jwtService = jwtService;
         this.jwtUtil = jwtUtil;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
-                                  FilterChain filterChain) throws ServletException, IOException {
+                                    FilterChain filterChain) throws ServletException, IOException {
 
         final String authHeader = request.getHeader("Authorization");
 
@@ -47,20 +50,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String jwt = authHeader.substring(7);
 
-        final String username = jwtUtil.extractUsername(jwt);
-        if (username != null && jwtUtil.isTokenValid(jwt)) {
-            List<String> roles = jwtUtil.extractRoles(jwt);
-            List<SimpleGrantedAuthority> authorities = roles.stream()
-                    .map(SimpleGrantedAuthority::new)
-                    .collect(Collectors.toList());
+        // Use Redis-based validation (fast lookup + security)
+        jwtService.validateToken(jwt);
 
-            UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                    username,
-                    null,
-                    authorities
-            );
-            SecurityContextHolder.getContext().setAuthentication(authToken);
-        }
+        final String username = jwtUtil.extractUsername(jwt);
+        List<String> roles = jwtUtil.extractRoles(jwt);
+        List<SimpleGrantedAuthority> authorities = roles.stream()
+            .map(SimpleGrantedAuthority::new)
+            .collect(Collectors.toList());
+
+        UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+            username,
+            null,
+            authorities
+        );
+        SecurityContextHolder.getContext().setAuthentication(authToken);
+
 
         filterChain.doFilter(request, response);
     }

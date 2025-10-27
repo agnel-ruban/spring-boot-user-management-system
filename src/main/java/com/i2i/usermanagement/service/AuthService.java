@@ -5,13 +5,8 @@ import com.i2i.usermanagement.dto.AuthResponseDTO;
 import com.i2i.usermanagement.entity.User;
 import com.i2i.usermanagement.exception.AuthenticationException;
 import com.i2i.usermanagement.repository.UserRepository;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.util.Optional;
 
 /**
  * Service for authentication operations.
@@ -60,14 +55,6 @@ public class AuthService {
 
         // Generate JWT token
         String token = jwtService.generateToken(user);
-
-//        // Create Authentication object and set in SecurityContext
-//        Authentication authentication = new UsernamePasswordAuthenticationToken(
-//                user.getName(), // Principal (username)
-//                null, // Credentials (null for authenticated user)
-//                null  // Authorities (empty for now, will add roles later)
-//        );
-//        SecurityContextHolder.getContext().setAuthentication(authentication);
 
         // Return authentication response
         return AuthResponseDTO.builder()

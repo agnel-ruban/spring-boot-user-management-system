@@ -10,11 +10,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -71,32 +67,6 @@ public class User {
     @Column(name = "email", nullable = false, unique = true, length = 100)
     private String email;
 
-    /**
-     * Age of the user.
-     * Must be between 18 and 120 years.
-     */
-    @NotNull(message = "Age is required")
-    @Min(value = 18, message = "Age must be at least 18")
-    @Max(value = 120, message = "Age must not exceed 120")
-    @Column(name = "age", nullable = false)
-    private Integer age;
-
-    /**
-     * Phone number of the user.
-     * Optional field with validation for phone number format.
-     */
-    @Pattern(regexp = "^[+]?[0-9]{10,15}$", message = "Phone number should be valid")
-    @Size(max = 15, message = "Phone number must not exceed 15 characters")
-    @Column(name = "phone_number", length = 15)
-    private String phoneNumber;
-
-    /**
-     * Address of the user.
-     * Optional field with maximum length constraint.
-     */
-    @Size(max = 255, message = "Address must not exceed 255 characters")
-    @Column(name = "address")
-    private String address;
 
     /**
      * Password for user authentication.
