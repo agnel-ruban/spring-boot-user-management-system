@@ -38,7 +38,7 @@ public class JwtUtil {
      * @return the generated JWT token string
      */
     public String generateToken(User user) {
-        List<String> roles = user.getUserRoles().stream()
+        List<String> roles = user.getUserRoles().parallelStream()
                 .map(userRole -> userRole.getRole().getName())
                 .collect(Collectors.toList());
 

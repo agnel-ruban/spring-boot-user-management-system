@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ForkJoinPool;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of UserService interface.
@@ -105,8 +106,9 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public List<UserResponseDTO> getAllUsers() {
-        List<User> users = userRepository.findByIsActiveTrue();
-        return userMapper.toDTOList(users);
+        return userRepository.findByIsActiveTrue().stream()
+                .map(userMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     /**
