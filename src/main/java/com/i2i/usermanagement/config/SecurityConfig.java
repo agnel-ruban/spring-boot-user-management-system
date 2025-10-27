@@ -3,7 +3,6 @@ package com.i2i.usermanagement.config;
 import com.i2i.usermanagement.filter.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -22,15 +21,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     // Whitelist URLs that don't require authentication
     private static final String[] WHITE_LIST_URL = {
         "/api/v1/auth/**",
         "/swagger-ui/**",
-        "/v3/api-docs/**",
-        "/webjars/**"
+        "/v1/api-docs/**"
     };
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
